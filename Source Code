@@ -1,0 +1,529 @@
+//0.01 made the game, added position, direction, physics, WASD and well yeah, verything
+//0.02 improved movememnt engine
+//0.03 this is the default map now
+//0.4 update, gun added and firing animations
+// 0.5 update: Added a box that runs to you,  it keeps scaling through the cam so yeah.
+// 0.6 update: added some guy running to you, stops 1.5 units away from you, so uhh it wont be in your face, minimap issue i need to fix for now. 
+//0.7 Yay its 2026, saing this late, I removed redguy, because he just sucks and the following is broken, and added  wall you didnt ask for!
+//0.8 update: Added flame wall (type 14) with animated fire covering entire wall. It sucks use it if you want lag. :( EDIT: flame keeps flipping generating every FPS, if im right, game is going at 100-150 FPS, so 100 frames per sec for every fire pixel is a lot lol. And fire is bitcrushed. 
+
+var worldMap = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,2,2,2,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+    [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,3,0,0,0,3,0,0,0,1],
+    [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,2,2,0,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,4,0,4,0,0,1],
+    [1,4,0,0,0,0,5,0,4,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1],
+    [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,1,1,1,1,1,0,1],
+    [1,4,0,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+var posX = 22, posY = 12;
+var dirX = -1, dirY = 0;
+var planeX = 0, planeY = 0.66;
+var h = 400;
+
+var moveSpeed = 0.2;
+var rotSpeed = 5;
+
+var keysDown = [];
+
+// Mouse look variables
+var PointerLockStart = false;
+
+// ===== FIRE WALL VARIABLES (type 14) =====
+var delag = false;
+
+// Fire wall variables
+var redVal = 568;
+var greenVal = 20;
+var blueVal = 0;
+var blendFlame = true;
+var blendFactor = 0.3;
+var umbraColor = [255,255,0];
+var penumbraColor = [255,128,0];
+var umbraFactor = 0.3;
+var penumbraFactor = 0.4;
+var flameWidth = 0.1;
+var flameHeight = 0.03;
+var flameCenter = [31,19];
+var flameSize = 15;
+var flameBrightness = 30;
+var colorPerturbStrength = 2.5;
+var alphaPerturbStrength = 2;
+
+// Initialize flame data arrays
+var flame = [];
+var aChannel = [];
+var flameFinal = [];
+
+// Initialize flame data
+var initFlame = function() {
+    flame = [];
+    for (var i = 0; i < 40; i++) {
+        flame.push([]);
+        for (var j = 0; j < 40; j++) {
+            var r = random(0, redVal);
+            var g = random(0, greenVal);
+            var b = random(0, blueVal);
+            var c = [r+20, g+20, b];
+            var num = 0;
+            var colors = [0, 0, 0];
+            
+            if (blendFlame) {
+                if (i !== 0) {
+                    colors[0] += flame[i-1][j][0];
+                    colors[1] += flame[i-1][j][1];
+                    colors[2] += flame[i-1][j][2];
+                    num += 1;
+                }
+                if (j !== 0) {
+                    colors[0] += flame[i][j-1][0];
+                    colors[1] += flame[i][j-1][1];
+                    colors[2] += flame[i][j-1][2];
+                    num += 1;
+                }
+                if (i !== 0 && j !== 0) {
+                    colors[0] += flame[i-1][j-1][0];
+                    colors[1] += flame[i-1][j-1][1];
+                    colors[2] += flame[i-1][j-1][2];
+                    num += 1;
+                }
+                if (num !== 0) {
+                    c[0] = c[0]*blendFactor + colors[0]*(1-blendFactor)/num + 20;
+                    c[1] = c[1]*blendFactor + colors[1]*(1-blendFactor)/num + 10;
+                }
+            }
+            
+            if (dist(i, j, 39, 19) < 5) {
+                c[0] = umbraColor[0]*umbraFactor + c[0]*(1-umbraFactor);
+                c[1] = umbraColor[1]*umbraFactor + c[1]*(1-umbraFactor);
+                c[2] = umbraColor[2]*umbraFactor + c[2]*(1-umbraFactor);
+            } else if (0.03*(i-35)*(i-35) + 0.2*(j-19)*(j-19) < 10) {
+                c[0] = penumbraColor[0]*penumbraFactor + c[0]*(1-penumbraFactor);
+                c[1] = penumbraColor[1]*penumbraFactor + c[1]*(1-penumbraFactor);
+                c[2] = penumbraColor[2]*penumbraFactor + c[2]*(1-penumbraFactor);
+            }
+            flame[i].push(c);
+        }
+    }
+    
+    aChannel = [];
+    for (var i = 0; i < 40; i++) {
+        aChannel.push([]);
+        for (var j = 0; j < 40; j++) {
+            var raw = flameHeight*(i-flameCenter[0])*(i-flameCenter[0]) + flameWidth*(j-flameCenter[1])*(j-flameCenter[1]);
+            aChannel[i].push(flameBrightness*(flameSize - raw));
+        }
+    }
+};
+
+// Helper functions for flame animation
+var distort = function(x, y, z, s) {
+    var n = 2*noise(0.05*x, 0.05*y, z) - 1;
+    var n2 = 2*noise(-0.05*x, -0.05*y, z) - 1;
+    return [constrain(floor(x + s*n), 0, 39), constrain(floor(y + s*n2), 0, 39)];
+};
+
+var perturb = function(grid, s) {
+    var res = [];
+    for (var i = 0; i < 40; i++) {
+        res.push([]);
+        for (var j = 0; j < 40; j++) {
+            var c1 = s*(10 - 0.2*i);
+            var c2 = s*(5 - 0.05*i);
+            res[i].push([constrain(floor(i + c1*grid[i][j]), 0, 39), 
+                        constrain(floor(j - c2*grid[i][j]), 0, 39)]);
+        }
+    }
+    return res;
+};
+
+// Generate flame animation frame
+var generateFlameFrame = function() {
+    var final = [];
+    for (var i = 0; i < 40; i++) {
+        final.push([]);
+        for (var j = 0; j < 40; j++) {
+            var d = distort(i, j, frameCount/60, 1);
+            noiseDetail(3, 0.6);
+            var alpha1 = (2*noise(0.05*d[0] + frameCount/31, 0.05*d[1], frameCount/60) - 1);
+            var alpha2 = (2*noise(0.05*d[0] + frameCount/22 + 0.5, 0.05*d[1] + 0.2, frameCount/60) - 1);
+            var alpha3 = (2*noise(0.05*d[0] + frameCount/10 + 0.78, 0.05*d[1] + 0.68, frameCount/60) - 1);
+            var a = 2*(1 - (1 - alpha1)*(1 - alpha2)*(1 - alpha3)) - 1;
+            final[i].push(a);
+        }
+    }
+    
+    var perturbed = perturb(final, colorPerturbStrength);
+    var perturbed2 = perturb(final, alphaPerturbStrength);
+    
+    flameFinal = [];
+    for (var i = 0; i < 40; i++) {
+        flameFinal.push([]);
+        for (var j = 0; j < 40; j++) {
+            var c = flame[perturbed[i][j][0]][perturbed[i][j][1]];
+            var a = aChannel[perturbed2[i][j][0]][perturbed2[i][j][1]];
+            flameFinal[i].push([c[0], c[1], c[2], a]);
+        }
+    }
+};
+
+// Get flame color for a specific position on the wall - SIMPLIFIED VERSION
+var getFlameColorForWall = function(wallX, wallY) {
+    // Map wall coordinates to flame texture coordinates (cover entire wall)
+    var flameX = map(wallX, 0, 1, 0, 39);
+    var flameY = map(wallY, 0, 1, 0, 39);
+    
+    flameX = constrain(floor(flameX), 0, 39);
+    flameY = constrain(floor(flameY), 0, 39);
+    
+    if (flameFinal.length > 0 && flameFinal[flameY] && flameFinal[flameY][flameX]) {
+        return flameFinal[flameY][flameX];
+    }
+    
+    // Default orange color if flame data isn't ready
+    return [255, 100, 0, 200];
+};
+
+// Initialize flame system
+initFlame();
+
+// Pointer Lock API implementation
+var PointerLockAPI = function(f) {
+    var Document = (function() {
+        return this[["document"]];
+    })();
+    var outputCanvas = Document.getElementById("output-canvas");
+    var Supported = false;
+    var PointerTypes = ["", "webkit", "moz"];
+    var PointerType;
+    for (var x = 0; x < PointerTypes.length; x++) {
+        if (outputCanvas[[PointerTypes[x] + (PointerTypes[x] === "" ? "requestPointerLock" : "RequestPointerLock")]] !== undefined) {
+            Supported = true;
+            PointerType = PointerTypes[x];
+            break;
+        } else {
+            Supported = false;
+        }
+    }
+    this.Supported = Supported;
+    this.Lock = function() {
+        outputCanvas[(PointerType === "" ? "requestPointerLock" : PointerType + "RequestPointerLock")]();
+        PointerLockStart = true;
+    };
+    this.Unlock = function() {
+        outputCanvas[(PointerType === "" ? "exitPointerLock" : PointerType + "ExitPointerLock")]();
+        PointerLockStart = false;
+    };
+    f(this);
+    Document.addEventListener("mousemove", function(ev) {
+        if (PointerLockStart) {
+            var deltaX = ev.movementX || 0;
+            var rotAmount = deltaX * 0.015;
+            
+            var odx = dirX;
+            dirX = dirX * cos(-rotAmount) - dirY * sin(-rotAmount);
+            dirY = odx * sin(-rotAmount) + dirY * cos(-rotAmount);
+            var opx = planeX;
+            planeX = planeX * cos(-rotAmount) - planeY * sin(-rotAmount);
+            planeY = opx * sin(-rotAmount) + planeY * cos(-rotAmount);
+        }
+    });
+};
+
+if(worldMap==="r") {
+    worldMap=[];
+    for(var x = 0; x < 24; x++) {
+        var r = [];
+        for(var y = 0; y < 24; y++) {
+            if(y===0||y===23||x===0||x===23) {
+                r.push(1);
+                continue;
+            }
+            if(random()<0.2) {
+                r.push(floor(random(2,7)));
+            }
+            else {
+                r.push(0);
+            }
+        }
+        worldMap.push(r);
+    }
+}
+var mm;
+var miniMap = function(s) {
+    var rs = ceil(s/worldMap.length);
+        noStroke();
+        for(var x = 0; x < worldMap.length; x++) {
+            for(var y = 0; y < worldMap[x].length; y++) {
+                switch(worldMap[x][y]) {
+                    case 0: fill(150, 200, 255); break;
+                    case 1: fill(255, 0, 0); break;
+                    case 2: fill(0, 255, 0); break;
+                    case 3: fill(0, 0, 255); break;
+                    case 4: fill(255); break;
+                    case 5: fill(255, 255, 0); break;
+                    case 6: fill(0, 0, 0); break;
+                    case 14: fill(255, 100, 0); break; // Flame wall
+                }
+                rect(x*rs,y*rs,rs,rs);
+            }
+        }
+    stroke(0, 255, 255);
+    fill(150, 255, 255);
+    translate(posX*rs,posY*rs);
+    rotate(atan2(dirY,dirX));
+    rect(0,-rs/4,rs,rs/4);
+    resetMatrix();
+    ellipse(posX*rs,posY*rs,rs,rs);
+};
+
+// Function to display position coordinates
+var displayCoordinates = function() {
+    fill(255, 255, 255);
+    textSize(12);
+    textAlign(LEFT, TOP);
+    text("Position: X=" + posX.toFixed(2) + " Y=" + posY.toFixed(2), 10, 123);
+    text("Direction: X=" + dirX.toFixed(2) + " Y=" + dirY.toFixed(2), 10, 139);
+    text("Map Cell: [" + floor(posX) + "," + floor(posY) + "]", 10, 153);
+    
+    if (PointerLockStart) {
+        fill(0, 255, 0);
+        text("Mouse Look: ENABLED (ESC to unlock)", 10, 167);
+    } else {
+        fill(255, 0, 0);
+        text("Mouse Look: DISABLED (Click to lock)", 10, 167);
+    }
+};
+
+// func for pointer
+var drawMovingBox = function() {
+    pushMatrix();
+   
+    fill(79, 73, 35);
+    ellipse(180, 349, 50, 50);
+    fill(28, 25, 28);
+    noStroke();
+    arc(183, 325, 40, 35, 1, 180);
+    arc(183, 306, 30, 35, -180, 1);
+    quad(163, 325, 203, 325, 199, 305, 168, 305);
+    rect(-2,352,406,56,-1);
+    
+    if(mouseIsPressed && mouseX > 50 && mouseY > 20) {
+        fill(255, 0, 0);
+        arc(183, 305, 50, 45, 1, 180);
+        triangle(157, 305, 209, 305, 185, 257);
+        fill(255, 255, 255);
+        arc(183, 305, 40, 35, 1, 180);
+        triangle(163, 305, 204, 305, 185, 267);
+    }
+    
+    pushMatrix();
+    translate(200, 200); 
+    stroke(255);
+    strokeWeight(1);
+    line(-5, 0, 5, 0);
+    line(0, -5, 0, 5);
+    popMatrix();
+};
+
+var draw = function() {
+    // Generate new flame frame for animation
+    generateFlameFrame();
+    
+    background(150,200,255);
+    for(var x = 0; x < 400; x++) {
+        var cameraX = 2*x/400.0-1;
+        var rayPosX = posX;
+        var rayPosY = posY;
+        var rayDirX = dirX+planeX*cameraX;
+        var rayDirY = dirY+planeY*cameraX;
+        var mapX = floor(rayPosX);
+        var mapY = floor(rayPosY);
+        
+        var sideDistX;
+        var sideDistY;
+        var deltaDistX = sqrt(1+pow(rayDirY,2)/pow(rayDirX,2));
+        var deltaDistY = sqrt(1+pow(rayDirX,2)/pow(rayDirY,2));
+        var perpWallDist;
+        
+        var stepX;
+        var stepY;
+        var hit = 0;
+        var side;
+        var stepX = rayDirX<0?-1:1;
+        var sideDistX = rayDirX<0?(rayPosX-mapX)*deltaDistX:(mapX+1.0-rayPosX)*deltaDistX;
+        var stepY = rayDirY<0?-1:1;
+        var sideDistY = rayDirY<0?(rayPosY-mapY)*deltaDistY:(mapY+1.0-rayPosY)*deltaDistY;
+        
+        while(hit===0) {
+            if(sideDistX<sideDistY) {
+                sideDistX+=deltaDistX;
+                mapX+=stepX;
+                side = 0;
+            }
+            else {
+                sideDistY+=deltaDistY;
+                mapY+=stepY;
+                side=1;
+            }
+            if(worldMap[mapX][mapY] > 0) {hit = 1;}
+        }
+        
+        var perpWallDist = abs(side===0?(mapX-rayPosX+(1-stepX)/2)/rayDirX:(mapY-rayPosY+(1-stepY)/2)/rayDirY);
+        var lineHeight = abs(floor(h/perpWallDist))*2;
+        
+        var drawStart = -lineHeight/2+200;
+        if(drawStart<0) {drawStart=0;}
+        var drawEnd = lineHeight/2+200;
+        if(drawEnd>=h) {drawEnd=h-1;}
+        
+        // Draw the wall with color/texture based on wall type
+        if(side===0) {
+            switch(worldMap[mapX][mapY]) {
+                case 1: stroke(255, 0, 0); break;
+                case 2: stroke(0, 255, 0); break;
+                case 3: stroke(0, 0, 255); break;
+                case 4: stroke(255); break;
+                case 5: stroke(255, 255, 0); break;
+                case 6: stroke(0, 0, 0); break;
+                case 14: 
+                    // Draw entire wall with flame animation
+                    for (var y = drawStart; y < drawEnd; y++) {
+                        // Calculate position within wall (0 to 1)
+                        var wallPosY = (y - drawStart) / (drawEnd - drawStart);
+                        var wallPosX = x / 400.0;
+                        
+                        // Get flame color for this position (covers entire wall)
+                        var flameColor = getFlameColorForWall(wallPosX, wallPosY);
+                        
+                        stroke(flameColor[0], flameColor[1], flameColor[2], flameColor[3]);
+                        point(x, y);
+                    }
+                    continue; // Skip the normal line() call
+            }
+        }
+        else {
+            switch(worldMap[mapX][mapY]) {
+                case 1: stroke(127, 0, 0); break;
+                case 2: stroke(0, 127, 0); break;
+                case 3: stroke(0, 0, 127); break;
+                case 4: stroke(127); break;
+                case 5: stroke(127, 127, 0); break;
+                case 6: stroke(0, 0, 0); break;
+                case 14: 
+                    // Draw entire wall with flame animation (darker for side walls)
+                    for (var y = drawStart; y < drawEnd; y++) {
+                        // Calculate position within wall (0 to 1)
+                        var wallPosY = (y - drawStart) / (drawEnd - drawStart);
+                        var wallPosX = x / 400.0;
+                        
+                        // Get flame color for this position (covers entire wall)
+                        var flameColor = getFlameColorForWall(wallPosX, wallPosY);
+                        
+                        // Make it darker for side walls
+                        stroke(flameColor[0] * 0.7, flameColor[1] * 0.7, flameColor[2] * 0.7, flameColor[3]);
+                        point(x, y);
+                    }
+                    continue; // Skip the normal line() call
+            }
+        }
+        
+        line(x, drawStart, x, drawEnd);
+    }
+    
+    miniMap(100);
+    drawMovingBox();
+    displayCoordinates();
+    
+    if(keysDown[87]) {
+        if(!worldMap[floor(posX+dirX*moveSpeed)][floor(posY)]) {
+            posX += dirX*moveSpeed;
+        }
+        if(!worldMap[floor(posX)][floor(posY+dirY*moveSpeed)]) {
+            posY += dirY*moveSpeed;
+        }
+    }
+    if(keysDown[83]) {
+        if(!worldMap[floor(posX-dirX*moveSpeed)][floor(posY)]) {
+            posX -= dirX*moveSpeed;
+        }
+        if(!worldMap[floor(posX)][floor(posY-dirY*moveSpeed)]) {
+            posY -= dirY*moveSpeed;
+        }
+    }
+    if(keysDown[65]) {
+        if(!worldMap[floor(posX-dirY*moveSpeed)][floor(posY)]) {
+            posX -= dirY*moveSpeed;
+        }
+        if(!worldMap[floor(posX)][floor(posY+dirX*moveSpeed)]) {
+            posY += dirX*moveSpeed;
+        }
+    }
+    if(keysDown[68]) {
+        if(!worldMap[floor(posX+dirY*moveSpeed)][floor(posY)]) {
+            posX += dirY*moveSpeed;
+        }
+        if(!worldMap[floor(posX)][floor(posY-dirX*moveSpeed)]) {
+            posY -= dirX*moveSpeed;
+        }
+    }
+    
+    if(keysDown[RIGHT] && !PointerLockStart) {
+        var odx = dirX;
+        dirX = dirX*cos(-rotSpeed)-dirY*sin(-rotSpeed);
+        dirY = odx*sin(-rotSpeed)+dirY*cos(-rotSpeed);
+        var opx = planeX;
+        planeX = planeX*cos(-rotSpeed)-planeY*sin(-rotSpeed);
+        planeY = opx*sin(-rotSpeed)+planeY*cos(-rotSpeed);
+    }
+    if(keysDown[LEFT] && !PointerLockStart) {
+        var odx = dirX;
+        dirX = dirX*cos(rotSpeed)-dirY*sin(rotSpeed);
+        dirY = odx*sin(rotSpeed)+dirY*cos(rotSpeed);
+        var opx = planeX;
+        planeX = planeX*cos(rotSpeed)-planeY*sin(rotSpeed);
+        planeY = opx*sin(rotSpeed)+planeY*cos(rotSpeed);
+    }
+};
+
+mouseClicked = function() {
+    if (!PointerLockStart) {
+        PointerLockAPI(function(Pointer) {
+            if (Pointer.Supported) {
+                Pointer.Lock();
+            }
+        });
+    }
+};
+
+var keyPressed = function() {
+    keysDown[keyCode]=true;
+    if (keyCode === 27 && PointerLockStart) {
+        PointerLockAPI(function(Pointer) {
+            if (Pointer.Supported) {
+                Pointer.Unlock();
+            }
+        });
+    }
+};
+
+var keyReleased = function() {
+    keysDown[keyCode]=false;
+};
